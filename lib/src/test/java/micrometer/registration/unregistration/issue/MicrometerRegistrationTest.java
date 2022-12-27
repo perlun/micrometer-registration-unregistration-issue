@@ -7,7 +7,6 @@ import static org.assertj.core.api.Fail.fail;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.URL;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -42,9 +41,6 @@ class MicrometerRegistrationTest {
     @AfterEach
     void tearDown() {
         registryFactory.close();
-
-        // This is required to avoid leaking state to other tests.
-        removeAllMetrics( registryFactory );
     }
 
     @RepeatedTest( 150 )
@@ -85,16 +81,6 @@ class MicrometerRegistrationTest {
         registryFactory.initExporters();
 
         return Pair.of( registryFactory, prometheusHost + ":" + registryFactory.getPrometheusPort() );
-    }
-
-    public static void removeAllMetrics( MicrometerRegistryFactory factory ) {
-        Collection<MeterRegistry> meterRegistries = factory.getMeterRegistries();
-
-        for ( MeterRegistry meterRegistry : meterRegistries ) {
-            meterRegistry.clear();
-        }
-
-        meterRegistries.clear();
     }
 
     public static List<String> getPrometheusMetrics( String prometheusHost, String metricName ) throws IOException {

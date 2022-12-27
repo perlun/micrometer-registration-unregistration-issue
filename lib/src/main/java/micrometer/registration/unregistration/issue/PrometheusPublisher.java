@@ -21,7 +21,7 @@ import com.google.common.base.Stopwatch;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.prometheus.client.Collector.MetricFamilySamples;
 
@@ -41,6 +41,7 @@ public class PrometheusPublisher {
 
     private final InetSocketAddress socketAddress;
     private final String hostname;
+    private final CompositeMeterRegistry compositeMeterRegistry;
 
     private int port;
     private HttpServer server;
@@ -48,8 +49,10 @@ public class PrometheusPublisher {
     private ExecutorService executorService;
     private PrometheusMeterRegistry registry;
 
-    public PrometheusPublisher( String hostname, int port ) {
+    public PrometheusPublisher( String hostname, int port, CompositeMeterRegistry compositeMeterRegistry ) {
         this.hostname = hostname;
+        this.compositeMeterRegistry = compositeMeterRegistry;
+
         socketAddress = new InetSocketAddress( hostname, port );
     }
 
@@ -88,7 +91,7 @@ public class PrometheusPublisher {
         logger.info( "publishing Prometheus metrics at http://{}:{}/{}", hostname, port, PATH );
         this.server.createContext( "/" + PATH, httpExchange -> handleRequest( httpExchange, registry ) );
 
-        Metrics.addRegistry( registry );
+        compositeMeterRegistry.add( registry );
     }
 
     private void handleRequest( HttpExchange httpExchange, PrometheusMeterRegistry registry ) throws IOException {
@@ -126,7 +129,7 @@ public class PrometheusPublisher {
         server.stop( 0 );
         executorService.shutdown(); // Free any (parked/idle) threads in pool
 
-        Metrics.removeRegistry( registry );
+        compositeMeterRegistry.remove( registry );
 
         logger.info( "Prometheus publisher stopped at http://{}:{}/{}", hostname, port, PATH );
         server = null;

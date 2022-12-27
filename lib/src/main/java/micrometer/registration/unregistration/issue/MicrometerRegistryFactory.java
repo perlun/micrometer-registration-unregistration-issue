@@ -21,7 +21,8 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 public class MicrometerRegistryFactory {
     private static final Logger logger = LoggerFactory.getLogger( MicrometerRegistryFactory.class );
 
-    private final Map<String, MeterRegistry> meterRegistries = Maps.newConcurrentMap();
+    private final Map<String, CompositeMeterRegistry> meterRegistries = Maps.newConcurrentMap();
+    private final CompositeMeterRegistry globalCompositeMeterRegistry = new CompositeMeterRegistry();
 
     private final String prometheusHost;
 
@@ -34,10 +35,9 @@ public class MicrometerRegistryFactory {
     }
 
     public void close() {
-        synchronized ( Metrics.globalRegistry ) {
-            for ( MeterRegistry meterRegistry : meterRegistries.values() ) {
-                Metrics.removeRegistry( meterRegistry );
-            }
+        for ( CompositeMeterRegistry meterRegistry : meterRegistries.values() ) {
+            meterRegistry.remove( globalCompositeMeterRegistry);
+            globalCompositeMeterRegistry.remove( meterRegistry );
         }
     }
 
@@ -53,7 +53,7 @@ public class MicrometerRegistryFactory {
             prometheusPublisher = null;
         }
         else {
-            prometheusPublisher = setupPrometheusPublisher( prometheusHost );
+            prometheusPublisher = setupPrometheusPublisher( prometheusHost, globalCompositeMeterRegistry );
         }
     }
 
@@ -61,7 +61,7 @@ public class MicrometerRegistryFactory {
         return getOrCreateMeterRegistry( identifier );
     }
 
-    private PrometheusPublisher setupPrometheusPublisher( String prometheusHost ) {
+    private PrometheusPublisher setupPrometheusPublisher( String prometheusHost, CompositeMeterRegistry compositeMeterRegistry ) {
         String[] splitHostname = prometheusHost.split( ":" );
 
         if ( splitHostname.length != 2 ) {
@@ -74,7 +74,7 @@ public class MicrometerRegistryFactory {
         String hostName = splitHostname[0];
         int port = Integer.parseInt( splitHostname[1] );
 
-        PrometheusPublisher prometheusPublisher = new PrometheusPublisher( hostName, port );
+        PrometheusPublisher prometheusPublisher = new PrometheusPublisher( hostName, port, compositeMeterRegistry );
         prometheusPublisher.listen();
 
         Runtime.getRuntime().addShutdownHook( new Thread( this::closePrometheusPublisher ) );
@@ -104,11 +104,6 @@ public class MicrometerRegistryFactory {
         }
     }
 
-    @VisibleForTesting
-    Collection<MeterRegistry> getMeterRegistries() {
-        return meterRegistries.values();
-    }
-
     private MeterRegistry getOrCreateMeterRegistry( String identifier ) {
         MeterRegistry meterRegistry = meterRegistries.get( identifier );
 
@@ -126,7 +121,7 @@ public class MicrometerRegistryFactory {
                     // identifier.)
                     CompositeMeterRegistry newCompositeRegistry = new CompositeMeterRegistry();
 
-                    newCompositeRegistry.add( Metrics.globalRegistry );
+                    newCompositeRegistry.add( globalCompositeMeterRegistry );
 
                     return newCompositeRegistry;
                 } );

@@ -1,7 +1,5 @@
 package micrometer.registration.unregistration.issue;
 
-import static micrometer.registration.unregistration.issue.MicrometerRegistrationTest.removeAllMetrics;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.RepeatedTest;
@@ -23,9 +21,6 @@ public class MetricRegistryWrapperTest {
     @AfterEach
     public void tearDown() {
         registryFactory.close();
-
-        // This is required to avoid leaking state to other tests.
-        removeAllMetrics( registryFactory );
     }
 
     @RepeatedTest( 250 )
